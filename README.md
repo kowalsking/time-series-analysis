@@ -4,6 +4,8 @@
 від сирих даних до інтерактивного Streamlit-дашборда з патернами та короткостроковим
 прогнозом.
 
+### Demo: https://kse-time-series-analysis.streamlit.app/
+
 ## Що показує дашборд
 
 ![alt text](<data/images/Знімок екрана 2026-06-21 о 13.47.53.png>)
