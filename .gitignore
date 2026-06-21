@@ -1,5 +1,5 @@
 # Дані (сирі/оброблені не комітимо)
-data/raw/*
+# data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
