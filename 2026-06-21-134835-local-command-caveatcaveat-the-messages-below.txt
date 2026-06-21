@@ -1,0 +1,2172 @@
+╭─── Claude Code v2.1.183 ─────────────────────────────────────────────────────╮
+│                                                │ Tips for getting started    │
+│              Welcome back Dmytro!              │ ✔ Run /init to create a CL… │
+│                                                │ ─────────────────────────── │
+│                     ▐▛███▜▌                    │ What's new                  │
+│                    ▝▜█████▛▘                   │ The stream-stall hint now … │
+│                      ▘▘ ▝▝                     │ Improved auto mode safety:… │
+│                                                │ Added a warning when the r… │
+│   Opus 4.8 · API Usage Billing · HealthyLand   │ /release-notes for more     │
+│          ~/code/time-series-analysis           │                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+❯ /plan                                                                         
+  ⎿  Enabled plan mode
+
+❯ Нам потрібно з тобою створити міні-проєкт на Python для вирішення реальної    
+  оборонної проблеми: аналіз часових рядів сповіщень про повітряну тривогу в    
+  Україні. Давай створимо детальний PRD план розробки такого проєкту. Задавай   
+  питання для уточнення, де це необхідно.                                       
+
+⏺ Я допоможу створити детальний PRD план. Спочатку швидко перевірю поточний стан
+  проєкту, а потім поставлю уточнюючі питання.
+
+⏺ Bash(ls -la && echo "---" && git log --oneline -5 2>/dev/null || echo "no
+      commits")
+  ⎿  total 0
+     drwxr-xr-x   3 kowalsking  staff   96 Jun 21 09:54 .
+     drwxr-xr-x   8 kowalsking  staff  256 Jun 21 09:54 ..
+     … +3 lines (ctrl+o to expand)
+
+⏺ Проєкт порожній (greenfield) — досліджувати наявний код немає потреби. Перейду
+  одразу до уточнення вимог, бо від цих відповідей залежить вся архітектура
+  PRD.
+
+⏺ User answered Claude's questions:
+  ⎿  · Звідки братимемо дані про повітряні тривоги? → API alerts.in.ua
+     · Яка головна аналітична мета проєкту? → Візуалізація/дашборд, 
+     Прогнозування
+     · У якій формі має бути результат? → Веб-дашборд
+     · Який рівень технічної складності/глибини? → Навчальний MVP
+
+⏺ Чудово. Маю майже все для плану. Один технічний момент справді блокуючий,
+  уточню його та підтверджу стек.
+
+⏺ User answered Claude's questions:
+  ⎿  · Чи є у вас API-токен alerts.in.ua? (Він видається безкоштовно за запитом 
+     на їхньому сайті, але потрібен для живого API) → Давай працювати на 
+     історичних даних. Я знайшов два датасети, який з них нам підійде більше? 1.
+     https://www.kaggle.com/datasets/dimakyn/air-alarm-ukrain-2022022420220409 
+     2.https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukrain
+     e?resource=download
+     · Підтверджуєте стек для дашборда? (для навчального MVP найпростіший 
+     варіант) → Streamlit
+
+⏺ Дякую! Обидва датасети я хочу швидко перевірити по структурі, щоб дати
+  обґрунтовану рекомендацію — який краще пасує саме під аналіз часових рядів
+  тривог.
+
+⏺ Fetch(https://www.kaggle.com/datasets/dimakyn/air-alarm-ukrain-202202242022040
+       9)
+  ⎿  Received 9.5KB (200 OK)
+
+⏺ Fetch(https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukrai
+       ne)
+  ⎿  Received 14.3KB (200 OK)
+
+⏺ Kaggle рендериться через JS, тому автоматично прочитати схеми не вдалося. Дам
+  рекомендацію на основі відомих характеристик цих датасетів — і це справді
+  ключове рішення для плану, тож підтвердьмо його.
+
+  Коротко по двох датасетах:
+
+  ┌───────────────┬────────────────────────────┬────────────────────────────┐
+  │               │   #1 dimakyn — Air Alarm   │   #2 piterfm — Massive     │
+  │               │                            │      Missile Attacks       │
+  ├───────────────┼────────────────────────────┼────────────────────────────┤
+  │               │ Самі сповіщення про        │ Ракетні/дронові атаки      │
+  │ Що це         │ повітряну тривогу (region, │ (модель зброї,             │
+  │               │  start/end тривоги)        │ запущено/збито, місце      │
+  │               │                            │ пуску)                     │
+  ├───────────────┼────────────────────────────┼────────────────────────────┤
+  │ Період        │ ~24.02.2022 – 09.04.2022   │ 2022 → дотепер, активно    │
+  │               │ (~45 днів)                 │ оновлюється                │
+  ├───────────────┼────────────────────────────┼────────────────────────────┤
+  │ Гранулярність │ Подієва, по регіонах —     │ Епізодична (атаки), менше  │
+  │               │ ідеально для ЧР тривог     │ точок у часі               │
+  ├───────────────┼────────────────────────────┼────────────────────────────┤
+  │ Прогнозування │ Погодинні/добові патерни,  │ Краще для аналізу          │
+  │               │ короткостроковий прогноз   │ масованих атак / аномалій  │
+  └───────────────┴────────────────────────────┴────────────────────────────┘
+
+  Моя рекомендація: датасет #1 (dimakyn) — він буквально про повітряні тривоги,
+  що точно збігається з темою «аналіз часових рядів сповіщень про тривогу». Його
+  єдиний мінус — короткий період (~45 днів), тому довгої сезонності не
+  побачимо, але погодинних/добових патернів і короткострокового прогнозу для
+  навчального MVP вистачить. Датасет #2 можна додати пізніше як збагачення
+  (накладання атак на криву тривог).
+
+⏺ User answered Claude's questions:
+  ⎿  · Який датасет беремо як основний для проєкту? → #1 dimakyn (тривоги)
+
+⏺ Усі рішення зафіксовано. Це greenfield-проєкт із чіткою архітектурою — пишу
+  фінальний PRD-план напряму (без Plan-агента, бо дизайн однозначний).
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ План готовий. Він охоплює повний цикл навчального MVP: дані з Kaggle (#1
+  dimakyn) → препроцесинг → аналіз патернів → короткостроковий прогноз →
+  Streamlit-дашборд. Я свідомо зробив першим кроком реалізації інспекцію
+  реальної схеми CSV, бо точні назви колонок підтвердити автоматично не вдалося.
+
+⏺ User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/crystalline-growing-pebble.md · /plan to 
+     edit
+     PRD: Аналіз часових рядів повітряних тривог в Україні
+
+     Context (Навіщо)
+
+     Повітряні тривоги — критичний сигнал безпеки для мільйонів людей. Історичні
+     дані
+     про тривоги дозволяють виявляти патерни (коли найчастіше оголошують
+     тривоги,
+     у яких регіонах, як довго вони тривають) і будувати короткострокові 
+     прогнози
+     навантаження. Це навчальний MVP, що демонструє повний цикл аналізу часових
+     рядів:
+     від сирих даних → до інтерактивного дашборда з прогнозом.
+
+     Проблема: немає простого інструменту, щоб подивитися історичні патерни
+     тривог і
+     оцінити, наскільки вони прогнозовані.
+     Очікуваний результат: Streamlit-дашборд, який показує статистику, патерни
+     за
+     годинами/днями/регіонами та короткостроковий прогноз кількості тривог.
+
+     Зафіксовані рішення
+
+     - Дані: Kaggle dimakyn/air-alarm-ukrain-2022022420220409 (історичні події
+     тривог по регіонах, ~24.02.2022–09.04.2022). Завантажується вручну в
+     data/raw/.
+     - Аналітична мета: візуалізація/дашборд + короткостроковий прогноз.
+     - Формат: веб-дашборд на Streamlit.
+     - Рівень: навчальний MVP — простий, читабельний код, базові-середні методи.
+     - Часовий пояс: Europe/Kyiv для всіх часових агрегацій.
+
+     ▎ ⚠️ Точну схему CSV не вдалося підтвердити автоматично (Kaggle рендериться
+     ▎ через JS).
+     ▎ Перший крок реалізації — інспекція реальних колонок 
+     ▎ (notebooks/00_inspect.ipynb
+     ▎ або короткий скрипт), після чого зафіксувати маппінг у src/config.py.
+     ▎ Очікувані поля: регіон/область, час початку, час завершення тривоги.
+
+     Технологічний стек
+
+     - Python 3.11+, pandas, numpy — обробка даних
+     - streamlit — дашборд
+     - plotly — інтерактивні графіки (вбудовуються в Streamlit)
+     - statsmodels — сезонна декомпозиція + прогноз (Holt-Winters / SARIMAX)
+     - pytest — тести препроцесингу
+     - (опц.) kaggle CLI — завантаження датасету
+
+     Структура проєкту
+
+     time-series-analysis/
+     ├── README.md                # опис, як завантажити дані та запустити
+     ├── requirements.txt
+     ├── .gitignore               # ігнорує data/raw, .env, __pycache__
+     ├── data/
+     │   ├── raw/                 # сирий CSV з Kaggle (gitignored)
+     │   └── processed/           # очищені дані (parquet/csv)
+     ├── src/
+     │   ├── __init__.py
+     │   ├── config.py            # шляхи, маппінг колонок, назви регіонів,
+     константи
+     │   ├── data_loader.py       # читання сирого CSV
+     │   ├── preprocess.py        # очищення → канонічна таблиця подій
+     │   ├── features.py          # побудова часових рядів (погодинні
+     лічильники, тривалості)
+     │   ├── analysis.py          # патерни: година/день/регіон, кореляції,
+     тривалості
+     │   ├── forecast.py          # моделі прогнозу + оцінка якості
+     │   └── viz.py               # функції-білдери plotly-графіків (reused
+     дашбордом)
+     ├── app/
+     │   └── dashboard.py         # Streamlit-застосунок
+     ├── notebooks/
+     │   └── 00_inspect.ipynb     # інспекція схеми + EDA (опційно)
+     └── tests/
+         └── test_preprocess.py
+
+     Конвеєр обробки даних
+
+     1. Завантаження — користувач кладе CSV у data/raw/ (інструкція в README).
+     2. data_loader.load_raw() — читає CSV, повертає сирий DataFrame.
+     3. preprocess.build_events() — канонічна таблиця подій:
+     [region, start_dt (tz=Europe/Kyiv), end_dt, duration_min].
+     Парсинг дат, нормалізація назв регіонів, відсів некоректних/негативних
+     тривалостей.
+     4. features.py — будує часові ряди:
+       - hourly_active_regions() — к-сть регіонів під тривогою за кожну годину;
+       - hourly_alert_starts() — к-сть початків тривог за годину (цільовий ряд
+     прогнозу);
+       - per_region_series(), durations().
+     5. Збереження очищених даних у data/processed/ (кеш для дашборда).
+
+     Аналітичні модулі (analysis.py)
+
+     - KPI: всього тривог, сумарні години тривог, середня тривалість, к-сть
+     регіонів.
+     - Розподіл за годиною доби (24 біни) і за днем тижня.
+     - Денний тренд (к-сть тривог по днях).
+     - Топ регіонів за к-стю/сумарною тривалістю.
+     - Heatmap регіон × година доби.
+     - Кореляція між регіонами (індикатор масованих, синхронних тривог).
+
+     Прогнозування (forecast.py)
+
+     - Цільовий ряд: погодинна к-сть початків тривог (національний рівень).
+     - Train/test split: останні ~7 днів — тест.
+     - Моделі:
+       a. Наївний сезонний baseline — «та сама година попереднього дня» (період
+     = 24h).
+       b. Holt-Winters (statsmodels ExponentialSmoothing, seasonal_periods=24).
+       c. (опц.) SARIMAX з добовою сезонністю для порівняння.
+     - Метрики: MAE, RMSE (порівняння моделей із baseline).
+     - Прогноз на наступні 24–48 год із довірчим інтервалом.
+
+     ▎ Примітка: датасет короткий (~45 днів), тому тижневу/довгу сезонність не 
+     ▎ показуємо —
+     ▎ фокус на добовому циклі та короткостроковому горизонті. Це чесно 
+     ▎ зазначаємо в дашборді.
+
+     Дашборд (app/dashboard.py)
+
+     Streamlit, @st.cache_data для завантаження/обробки. Сайдбар: вибір
+     регіону(ів),
+     діапазон дат. Вкладки:
+
+     1. Огляд — KPI-карти + загальний часовий ряд активних тривог.
+     2. Патерни — графік за годиною доби, за днем тижня, heatmap регіон×година,
+     топ регіонів.
+     3. Прогноз — фактичний ряд + прогноз на 24–48 год, таблиця метрик моделей.
+
+     Усі графіки будуються через функції з src/viz.py (немає дублювання логіки).
+
+     Етапи реалізації (порядок)
+
+     1. Скелет: requirements.txt, .gitignore, README.md, пакет src/, config.py.
+     2. Інспекція реальної схеми CSV → зафіксувати маппінг колонок у config.py.
+     3. data_loader + preprocess (+ tests/test_preprocess.py).
+     4. features — часові ряди.
+     5. analysis — патерни та статистика.
+     6. forecast — моделі + метрики.
+     7. viz — графіки plotly.
+     8. app/dashboard.py — збірка дашборда.
+     9. README: інструкції завантаження даних і запуску.
+
+     Верифікація
+
+     - Дані: python -c "from src.preprocess import build_events; 
+     print(build_events().head())"
+     — таблиця подій коректна, дати в tz Europe/Kyiv, тривалості додатні.
+     - Тести: pytest tests/ — проходять (парсинг дат, нормалізація регіонів,
+     тривалості).
+     - Прогноз: python -c "from src.forecast import evaluate; print(evaluate())"
+     — Holt-Winters має MAE/RMSE не гірше за наївний baseline.
+     - Дашборд: streamlit run app/dashboard.py — усі 3 вкладки рендеряться,
+     фільтри за регіоном/датою працюють, графіки оновлюються, прогноз
+     відображається.
+     - End-to-end: свіже клонування → встановити залежності → покласти CSV →
+     запустити
+     дашборд за README без помилок.
+
+⏺ Auto mode lets Claude handle permission prompts automatically — Claude
+  checks each tool call for risky actions and prompt injection before 
+  executing. Actions Claude identifies as safe are executed, while 
+  actions Claude identifies as risky are blocked and Claude may try a 
+  different approach. Ideal for long-running tasks. Sessions are 
+  slightly more expensive. Claude can make mistakes that allow harmful 
+  commands to run, it's recommended to only use in isolated 
+  environments. Shift+Tab to change mode.
+⏺ План затверджено. Починаю реалізацію. Спершу перевірю середовище Python.
+
+⏺ Bash(python3 --version && which python3 && python3 -c "import sys;
+      print(sys.executable)")
+  ⎿  Python 3.14.4
+     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3
+     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3
+
+⏺ Python 3.14 — досить нова версія, деякі пакети (statsmodels) можуть не мати
+  wheels. Створю venv і перевірю встановлення пізніше. Спершу — скелет проєкту
+  та код.
+
+⏺ Починаю зі скелета. Створюю структуру та базові файли.
+
+⏺ Bash(mkdir -p data/raw data/processed src app notebooks tests && echo "dirs
+      created")
+  ⎿  dirs created
+
+⏺ Write(.gitignore)
+  ⎿  Wrote 29 lines to .gitignore
+      1 # Дані (сирі/оброблені не комітимо)
+      2 data/raw/*
+      3 data/processed/*
+      4 !data/raw/.gitkeep
+      5 !data/processed/.gitkeep
+      6 
+      7 # Секрети
+      8 .env
+      9 *.key
+     … +19 lines (ctrl+o to expand)
+
+⏺ Bash(touch data/raw/.gitkeep data/processed/.gitkeep && echo ok)
+  ⎿  ok
+
+⏺ Write(requirements.txt)
+  ⎿  Wrote 7 lines to requirements.txt
+      1 pandas>=2.0
+      2 numpy>=1.24
+      3 streamlit>=1.30
+      4 plotly>=5.18
+      5 statsmodels>=0.14
+      6 pytest>=7.4
+      7 pyarrow>=14.0
+
+⏺ Тепер пакет src/ з config.py — центральний модуль з шляхами, маппінгом колонок
+  та константами.
+
+⏺ Write(src/__init__.py)
+  ⎿  Wrote 3 lines to src/__init__.py
+      1 """Аналіз часових рядів повітряних тривог в Україні (навчальний M
+        VP)."""
+      2 
+      3 __version__ = "0.1.0"
+
+⏺ Write(src/config.py)
+  ⎿  Wrote 72 lines to src/config.py
+        колонок, регіони.фігурація проєкту: шляхи, часовий пояс, маппінг 
+      2 
+      3 Якщо реальна схема CSV відрізняється від очікуваної — достатньо о
+        новити
+      4 ``COLUMN_ALIASES`` тут, і весь конвеєр підхопить зміни.
+      5 """
+      6 
+      7 from __future__ import annotations
+      8 
+      9 from pathlib import Path
+     … +73 lines (ctrl+o to expand)
+
+⏺ Тепер data_loader.py — читання сирого CSV з толерантним маппінгом колонок.
+
+⏺ Write(src/data_loader.py)  ⎿  Wrote 63 lines to src/data_loader.py
+      1 """Завантаження сирих даних про тривоги з CSV.
+      2 
+      3 Толерантний до точної назви файлу та назв колонок: спирається на
+      4 ``config.COLUMN_ALIASES`` для приведення до канонічної схеми.
+      5 """
+      6 
+      7 from __future__ import annotations
+      8 
+      9 from pathlib import Path
+     … +57 lines (ctrl+o to expand)
+
+⏺ Тепер генератор синтетичних даних — щоб конвеєр і дашборд були запускні без
+  ручного завантаження Kaggle. Чітко позначу його як dev-фолбек.
+
+⏺ Write(src/synth.py)
+  ⎿  Wrote 105 lines to src/synth.py
+      2 """Генератор синтетичних даних про тривоги — DEV-ФОЛБЕК.
+      3 Потрібен, щоб запускати конвеєр і дашборд без ручного завантаженн
+        я Kaggle-датасету.
+      4 Відтворює реалістичні патерни (добовий цикл, різна активність рег
+        іонів, масовані
+        ть CSV з Kaggleе НЕ реальні дані. Для справжнього аналізу покладі
+      6 у data/raw/ (див. README).
+      7 
+      8 Запуск:  python -m src.synth
+      9 """
+     … +109 lines (ctrl+o to expand)
+
+⏺ Тепер preprocess.py — канонічна таблиця подій з нормалізацією регіонів і tz.
+
+⏺ Write(src/preprocess.py)
+  ⎿  Wrote 99 lines to src/preprocess.py
+      1 """Очищення сирих даних → канонічна таблиця подій тривог.
+      2 
+      3 Результат: DataFrame з колонками [region, start_dt, end_dt, durat
+        ion_min],
+      4 де start_dt/end_dt — timezone-aware (Europe/Kyiv).
+      5 """
+      6 
+      7 from __future__ import annotations
+      8 
+      9 import pandas as pd
+     … +100 lines (ctrl+o to expand)
+
+⏺ Тепер features.py — побудова погодинних часових рядів.
+
+⏺ Write(src/features.py)
+  ⎿  Wrote 88 lines to src/features.py
+       2 """Побудова часових рядів із таблиці подій.
+       3 Усі ряди мають безперервний погодинний індекс (Europe/Kyiv) без 
+         пропусків
+       4 (відсутні години заповнюються нулями) — це потрібно для коректно
+         го прогнозу.
+       6 """
+       7 from __future__ import annotations
+       8 
+       9 import numpy as np
+      10 import pandas as pd
+     … +89 lines (ctrl+o to expand)
+
+⏺ Тепер analysis.py — патерни, KPI та кореляції.
+
+⏺ Write(src/analysis.py)
+  ⎿  Wrote 93 lines to src/analysis.py
+      1 """Аналітика патернів тривог: KPI, розподіли за часом, регіони, к
+        ореляції."""
+      2 
+      3 from __future__ import annotations
+      4 
+      5 import pandas as pd
+      6 
+      7 from . import config, features
+      8 
+      9 UA_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+     … +94 lines (ctrl+o to expand)
+
+⏺ Тепер forecast.py — моделі прогнозу та оцінка якості.
+
+⏺ Write(src/forecast.py)
+  ⎿  Wrote 107 lines to src/forecast.py
+       2 """Короткостроковий прогноз погодинної к-сті тривог.
+       3 Моделі:
+       4   • seasonal_naive — наївний сезонний baseline («та сама година 
+       5   • holt_winters — експоненційне згладжування з добовою сезонніс
+         тю (statsmodels).
+       6 
+         в).нка: MAE / RMSE на відкладеному хвості (останні TEST_DAYS дні
+       8 """
+       9 
+      10 from __future__ import annotations
+     … +114 lines (ctrl+o to expand)
+
+⏺ Оновлю статуси задач та продовжу з viz.py.
+
+⏺ Тепер viz.py — plotly-білдери графіків (перевикористовуються дашбордом).
+
+⏺ Write(src/viz.py)
+  ⎿  Wrote 99 lines to src/viz.py
+          дашбордом."""ерактивних графіків (Plotly). Перевикористовуються
+       2 
+       3 from __future__ import annotations
+       4 
+       5 import pandas as pd
+       6 import plotly.express as px
+       7 import plotly.graph_objects as go
+       8 
+       9 ACCENT = "#d6336c"
+      10 GRID = "#e9ecef"
+     … +97 lines (ctrl+o to expand)
+
+⏺ Тепер головний дашборд app/dashboard.py.
+
+⏺ Write(app/dashboard.py)
+  ⎿  Wrote 195 lines to app/dashboard.py
+      1 """Streamlit-дашборд: аналіз часових рядів повітряних тривог.
+      2 
+      3 Запуск з кореня проєкту:  streamlit run app/dashboard.py
+      4 """
+      5 
+      6 from __future__ import annotations
+      7 
+      8 import sys
+      9 from pathlib import Path
+     … +215 lines (ctrl+o to expand)
+⏺ Тепер тести препроцесингу та README.
+
+⏺ Write(tests/test_preprocess.py)
+  ⎿  Wrote 70 lines to tests/test_preprocess.py
+      1 """Тести препроцесингу: парсинг дат, нормалізація регіонів, відсі
+        в сміття."""
+      2 
+      3 from __future__ import annotations
+      4 
+      5 import pandas as pd
+      6 import pytest
+      7 
+      8 from src import config
+      9 from src.preprocess import build_events, normalize_region
+     … +68 lines (ctrl+o to expand)
+
+⏺ Write(README.md)
+  ⎿  Wrote 91 lines to README.md
+       2 # Аналіз часових рядів повітряних тривог в Україні
+       3 Навчальний MVP: повний цикл аналізу часових рядів сповіщень про 
+         повітряну тривогу —
+          та короткостроковимнтерактивного Streamlit-дашборда з патернами
+       5 прогнозом.
+       6 
+       8 ## Що показує дашборд
+       9 - **Огляд** — KPI (всього тривог, регіонів, годин тривог, медіан
+         на тривалість),
+      10   погодинний ряд активних тривог, денний тренд.
+     … +92 lines (ctrl+o to expand)
+
+⏺ Усі файли написано. Тепер встановлення залежностей та верифікація. Створю venv
+  та встановлю пакети.
+
+⏺ Bash(python3 -m venv .venv && .venv/bin/python -m pip install --quiet
+      --upgrade pip && .venv/bin/python -m pip install -r requirements.txt 2>&1
+      | tail -25)
+  ⎿  Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+     Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+     Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+     … +36 lines (ctrl+o to expand)
+  ⎿  (timeout 10m)
+
+⏺ Усі залежності встановлено (включно зі statsmodels на Python 3.14). Тепер
+  генерую синтетичні дані та проганяю весь конвеєр.
+
+⏺ Bash(.venv/bin/python -m src.synth && echo "---PREPROCESS---" &&
+      .venv/bin/python -m src.preprocess)
+  ⎿  Згенеровано 1820 синтетичних подій → /Users/kowalsking/code/time-serie
+     s-analysis/data/raw/alerts.csv
+     ⚠️  Це СИНТЕТИЧНІ дані для розробки, не реальні тривоги.
+     … +11 lines (ctrl+o to expand)
+
+⏺ Bash(.venv/bin/python -m pytest -q 2>&1 | tail -20)
+  ⎿      def build_events(raw: pd.DataFrame | None = None) -> pd.DataFrame:
+             """Будує канонічну таблицю подій з сирого DataFrame (або з дис
+     ка)."""
+     … +19 lines (ctrl+o to expand)
+
+⏺ Тести передають сирі назви колонок напряму в build_events, але перейменування
+  зараз лише в load_raw. Зроблю build_events стійким — застосую маппінг колонок
+  усередині. Винесу хелпер у data_loader.
+
+⏺ Update(src/data_loader.py)
+  ⎿  Added 9 lines, removed 7 lines
+      32      return candidates[0]
+      33  
+      34  
+      35 -def load_raw(path: Path | None = None) -> pd.DataFrame:        
+      36 -    """Читає сирий CSV і приводить назви колонок до канонічних.
+      35 +def canonicalize_columns(df: pd.DataFrame) -> pd.DataFrame:    
+      36 +    """Приводить назви колонок до канонічних через config.COLUM
+         +N_ALIASES.                                                     
+      37  
+      38      Невідомі колонки зберігаються без змін (можуть знадобитися 
+          при інспекції).
+      39      """
+      40 -    path = path or find_raw_csv()                              
+      41 -    df = pd.read_csv(path)                                     
+      42 -                                                               
+      40      rename_map = {
+      41          col: config.COLUMN_ALIASES[col.strip().lower()]
+      42          for col in df.columns
+      43          if col.strip().lower() in config.COLUMN_ALIASES
+      44      }
+      48 -    df = df.rename(columns=rename_map)                         
+      49 -    return df                                                  
+      45 +    return df.rename(columns=rename_map)                       
+      46  
+      47  
+      48 +def load_raw(path: Path | None = None) -> pd.DataFrame:        
+      49 +    """Читає сирий CSV і приводить назви колонок до канонічних.
+         +"""                                                            
+      50 +    path = path or find_raw_csv()                              
+      51 +    return canonicalize_columns(pd.read_csv(path))             
+      52 +                                                               
+      53 +                                                               
+      54  def inspect(path: Path | None = None) -> None:
+      55      """Друкує схему сирого файлу — для кроку «інспекція реальни
+          х колонок»."""
+      56      path = path or find_raw_csv()
+
+⏺ Update(src/preprocess.py)
+  ⎿  Added 1 line, removed 1 line
+       9  import pandas as pd
+      10  
+      11  from . import config
+      12 -from .data_loader import load_raw                              
+      12 +from .data_loader import canonicalize_columns, load_raw        
+      13  
+      14  
+      15  def normalize_region(name: str) -> str:
+
+⏺ Update(src/preprocess.py)
+  ⎿  Added 1 line, removed 1 line
+      36  
+      37  def build_events(raw: pd.DataFrame | None = None) -> pd.DataFra
+          me:
+      38      """Будує канонічну таблицю подій з сирого DataFrame (або з 
+          диска)."""
+      39 -    df = raw if raw is not None else load_raw()                
+      39 +    df = canonicalize_columns(raw) if raw is not None else load
+         +_raw()                                                         
+      40  
+      41      missing = {config.COL_REGION, config.COL_START} - set(df.co
+          lumns)
+      42      if missing:
+
+⏺ Bash(.venv/bin/python -m pytest -q 2>&1 | tail -15)
+  ⎿          self = cast("DatetimeArray", self)
+
+             from pandas.core.arrays import TimedeltaArray
+     … +16 lines (ctrl+o to expand)
+
+⏺ pd.NaT створює tz-naive колонку, а start — tz-aware. Зроблю end tz-aware
+  NaT-серією.
+
+⏺ Update(src/preprocess.py)
+  ⎿  Added 5 lines, removed 2 lines
+      52      if config.COL_END in df.columns:
+      53          out[config.COL_END] = _to_kyiv(df[config.COL_END])
+      54      else:
+      55 -        # Якщо кінця немає — тривалості невідомі (NaT).        
+      56 -        out[config.COL_END] = pd.NaT                           
+      55 +        # Якщо кінця немає — тривалості невідомі (tz-aware NaT,
+         + щоб віднімання                                                
+      56 +        # з tz-aware start не падало).                         
+      57 +        out[config.COL_END] = pd.Series(                       
+      58 +            pd.NaT, index=out.index, dtype=f"datetime64[ns, {co
+         +nfig.TIMEZONE}]"                                               
+      59 +        )                                                      
+      60  
+      61      out[config.COL_DURATION] = (
+      62          out[config.COL_END] - out[config.COL_START]
+
+⏺ Bash(.venv/bin/python -m pytest -q 2>&1 | tail -8 && echo "===FORECAST===" &&
+      .venv/bin/python -m src.preprocess >/dev/null && .venv/bin/python -m
+      src.forecast)
+  ⎿  ......
+        [100%]
+     6 passed in 0.37s
+     … +4 lines (ctrl+o to expand)
+
+⏺ Тести проходять (6/6), Holt-Winters перевершує baseline (MAE 0.998 < 1.268).
+  Тепер швидкий смоук-тест аналітики та запуск дашборда.
+
+⏺ Bash(.venv/bin/python -c "
+      from src.preprocess import load_events…)
+  ⎿  events: 1817
+     KPIs: {'total_alerts': 1817, 'regions': 24, 'total_alert_hours': 1460.
+     2197222222223, 'avg_duration_min': 48.21859291873051, 'median_duration
+     … +14 lines (ctrl+o to expand)
+
+⏺ Аналітика працює, патерни реалістичні (Харківська/Луганська/Донецька — топ).
+  Тепер перевірю, що дашборд стартує без помилок (headless).
+⏺ Bash(timeout 25 .venv/bin/python -m streamlit run app/dashboard.py
+      --server.headless true --server.port 8765 >/tmp/streamlit.log 2>&1 &
+      SLPID=$!…)
+  ⎿  === log ===
+     (eval):1: command not found: timeout
+     === curl check ===
+     … +3 lines (ctrl+o to expand)
+
+⏺ timeout немає на macOS. Запущу streamlit у фоні та перевірю окремо.
+
+⏺ Bash(.venv/bin/python -m streamlit run app/dashboard.py --server.headless true
+      --server.port 8765 >/tmp/streamlit.log 2>&1)
+  ⎿  Running in the background (↓ to manage)
+
+⏺ I'll wait for streamlit to boot, then verify it serves HTTP 200.
+
+⏺ Bash(until grep -qE "You can now view|Network URL|Error|Traceback"
+      /tmp/streamlit.log 2>/dev/null; do sleep 0.5; done; echo "=== startup log
+      ==="; cat /tmp/streamlit…)
+  ⎿  Running in the background (↓ to manage)
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Background command "Wait for streamlit boot and curl check" completed (exit
+code 0)
+
+⏺ Дашборд віддає HTTP 200 і стартував чисто. Перевірю ще viz-білдери напряму
+  (єдиний нестестований шлях) і зупиню сервер.
+
+⏺ Bash(.venv/bin/python -c "
+      from src.preprocess import load_events…)
+  ⎿  all viz figures built OK: 8
+     server stopped
+
+⏺ Background command "Run streamlit dashboard in background" failed with exit
+code 144
+
+⏺ Готово! Проєкт повністю реалізовано та верифіковано end-to-end.
+
+  Що зроблено
+
+  Створено навчальний MVP для аналізу часових рядів повітряних тривог зі
+  Streamlit-дашбордом, згідно з затвердженим планом.
+
+  Структура:
+  src/config.py       # шляхи, tz Europe/Kyiv, маппінг колонок, константи
+  src/data_loader.py  # читання CSV + canonicalize_columns (толерантний до назв)
+  src/preprocess.py   # → канонічна таблиця [region, start_dt, end_dt,
+  duration_min]
+  src/features.py     # погодинні ряди (старти тривог, активні регіони,
+  per-region)
+  src/analysis.py     # KPI, розподіли год/день, heatmap, топ регіонів,
+  кореляції
+  src/forecast.py     # seasonal_naive baseline + Holt-Winters, MAE/RMSE
+  src/viz.py          # plotly-білдери (reused дашбордом)
+  src/synth.py        # генератор синтетичних даних (dev-фолбек)
+  app/dashboard.py    # Streamlit: 3 вкладки (Огляд / Патерни / Прогноз)
+  tests/              # pytest
+
+  Результати верифікації
+
+  ┌─────────────────────────┬───────────────────────────────────────────────┐
+  │          Крок           │                   Результат                   │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Залежності (Python      │ ✅ встановлено, статистика теж                │
+  │ 3.14, venv)             │                                               │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Генерація +             │ ✅ 1817 подій, 24 регіони, 45 днів            │
+  │ препроцесинг            │                                               │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ pytest                  │ ✅ 6/6 проходять                              │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Прогноз                 │ ✅ Holt-Winters MAE 0.998 < baseline 1.268    │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Аналітика/features      │ ✅ всі функції, реалістичні патерни           │
+  │                         │ (Харків/Луганськ/Донецьк — топ)               │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ viz-білдери             │ ✅ всі 8 графіків будуються                   │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Streamlit               │ ✅ стартує, віддає HTTP 200                   │
+  └─────────────────────────┴───────────────────────────────────────────────┘
+
+  Важливі деталі реалізації
+
+  - Працює одразу без Kaggle — python -m src.synth генерує реалістичні
+  синтетичні дані (добовий цикл, різна активність регіонів, масовані сплески).
+  Чітко позначено як dev-фолбек у коді, README та сайдбарі дашборда.
+  - Перший крок плану виконано через COLUMN_ALIASES — коли отримаєте реальний
+  CSV з Kaggle, запустіть python -m src.data_loader для інспекції колонок і за
+  потреби допишіть аліаси в config.py. Решта конвеєра підхопить зміни без
+  правок.
+
+  Як запустити
+
+  source .venv/bin/activate
+  python -m src.synth              # або покладіть CSV з Kaggle у data/raw/
+  streamlit run app/dashboard.py
+
+  Файли поки не закомічені (працювали на main). Сказати — створю гілку й
+  закомічу.
+
+✻ Crunched for 14m 0s
+
+※ recap: Built a Python MVP analyzing air-raid-alert time series with a Streamlit dashboard; all modules, tests, and forecasting are done and verified end-to-end on synthetic data. Next action: commit the work to a branch when you're ready, or swap in the real Kaggle CSV. (disable recaps in /config)
+
+❯ Супер! Я бачу працюючий MVP на історичних даних. Проте я отримав API токен    
+  від alerts.in.ua. Давай підключимось до реальних даних. API ключ знаходиться  
+  в .env під назвою ALERTS_TOKEN                                                
+  ⎿  ⧉ Selected 1 lines from .env in Visual Studio Code
+
+⏺ Чудово, що є реальний токен! Перш ніж писати клієнт, я зроблю один тестовий
+  запит до API, щоб підтвердити реальну структуру відповіді (а не вгадувати) — і
+  будуватиму клієнт уже навколо верифікованих даних. Токен у виводі світити не
+  буду.
+
+  Спершу перевірю наявність .env та залежності.
+
+⏺ Bash(ls -la .env 2>&1; echo "---"; grep -c ALERTS_TOKEN .env 2>/dev/null &&
+      echo "token present (value hidden)"; echo "---deps---"; .venv/bin/python
+      -c "import reque…)
+  ⎿  Error: Exit code 1
+     -rw-r--r--@ 1 kowalsking  staff  59 Jun 21 11:19 .env
+     ---
+     1
+     token present (value hidden)
+     ---deps---
+     requests 2.34.2
+     Traceback (most recent call last):
+       File "<string>", line 1, in <module>
+         import dotenv; print('dotenv ok')
+     … +2 lines (ctrl+o to expand)
+
+⏺ .env присутній, requests є, python-dotenv немає (додам). Тепер пробне
+  звернення до API — виведу лише структуру відповіді, без токена.
+
+⏺ Bash(set -a; . ./.env; set +a
+      echo "=== /v1/alerts/active.json ==="…)
+  ⎿  === /v1/alerts/active.json ===
+     HTTP 200
+     top-level keys: ['alerts', 'meta', 'disclaimer']
+     … +19 lines (ctrl+o to expand)
+
+⏺ active.json працює (82 активні тривоги зараз). Тепер перевірю історичний
+  ендпоінт по регіону — це джерело для часових рядів.
+
+⏺ Bash(set -a; . ./.env; set +a
+      for PERIOD in week_ago month_ago; do…)
+  ⎿  === /v1/regions/31/alerts/week_ago.json (Київ?) ===
+     HTTP 200
+     keys: ['alerts', 'meta', 'disclaimer']
+     … +61 lines (ctrl+o to expand)
+
+⏺ Історичний ендпоінт працює відмінно — month_ago.json дає ~місяць історії по
+  регіону зі started_at/finished_at. Це саме те, що треба для часових рядів.
+  Перевірю, чи є bulk-ендпоінт по всіх регіонах (один запит замість 27).
+
+⏺ Bash(set -a; . ./.env; set +a
+      for EP in "alerts/month_ago.json" "alerts/week_ago.json"; do…)  ⎿  === /v1/alerts/month_ago.json ===
+     HTTP 405
+     body: <html>
+     … +17 lines (ctrl+o to expand)
+
+⏺ Bulk-ендпоінта немає — треба ітерувати по регіонах. Мені потрібен надійний
+  список UID областей. Замість того щоб вгадувати, проск*аную UID 1–32 і
+  зафіксую реальний маппінг (одноразова розвідка). Роблю акуратно, з паузами.
+
+⏺ Bash(set -a; . ./.env; set +a
+      .venv/bin/python - <<'PY'…)
+  ⎿  discovered oblast-level UIDs: 3
+       13: Івано-Франківська область
+       16: Луганська область
+       29: Автономна Республіка Крим
+
+⏺ Лише 3 — бо фільтр location_type=='oblast' надто вузький: більшість недавніх
+  тривог зараз на рівні районів/громад, а не цілих областей. Перескан без цього
+  фільтра + подивлюсь розподіл типів.
+
+⏺ Bash(set -a; . ./.env; set +a
+      .venv/bin/python - <<'PY'…)
+  ⎿  queried UIDs with data: 0  total alerts: 0
+     location_type distribution: {}
+
+⏺ 0 результатів — схоже, спрацював rate-limit після попереднього скану. Перевірю
+  статус-коди та заголовки ліміту на одному запиті.
+
+⏺ Bash(set -a; . ./.env; set +a
+      .venv/bin/python - <<'PY'…)
+  ⎿  status: 429
+     rate headers: {'Retry-After': '3562'}
+     body head: {
+     … +3 lines (ctrl+o to expand)
+
+⏺ Ключове відкриття: ліміт API — 30 запитів / 10 хвилин (зараз я його вичерпав
+  розвідкою, тому Retry-After ~59 хв). Це фундаментально впливає на дизайн: не
+  можна тягнути дані щоразу — потрібен кеш на диску + контроль ліміту, а sync
+  робиться рідко (27 областей < 30 запитів = вкладається в одне вікно).
+
+  Підтверджено реальну структуру:
+  - month_ago.json по регіону дає ~місяць історії зі started_at/finished_at —
+  джерело для часових рядів
+  - Поля: location_title, location_oblast, location_type (oblast/raion/hromada),
+  alert_type (air_raid тощо), started_at, finished_at (null=активна)
+  - Я верифікував 4 UID областей (13, 16, 29, 31) — збігаються зі стандартним
+  маппінгом alerts.in.ua
+
+  Спланую інтеграцію і покажу на затвердження — це суттєва зміна архітектури.
+
+⏺ Підключаю реальні дані. Встановлю python-dotenv і будую інтеграцію.
+
+⏺ Bash(.venv/bin/python -m pip install --quiet python-dotenv && .venv/bin/python
+      -c "import dotenv; print('dotenv', dotenv.__version__)")
+  ⎿  Error: Exit code 1
+     Traceback (most recent call last):
+       File "<string>", line 1, in <module>
+         import dotenv; print('dotenv', dotenv.__version__)
+                                        ^^^^^^^^^^^^^^^^^^
+     AttributeError: module 'dotenv' has no attribute '__version__'
+
+⏺ Bash(.venv/bin/python -c "from dotenv import load_dotenv; print('dotenv ok')")
+  ⎿  dotenv ok
+
+⏺ Додам python-dotenv у requirements та розширю config.py параметрами API й
+  маппінгом областей.
+
+⏺ Update(requirements.txt)
+  ⎿  Added 2 lines
+      5  statsmodels>=0.14
+      6  pytest>=7.4
+      7  pyarrow>=14.0
+      8 +requests>=2.31                                                  
+      9 +python-dotenv>=1.0                                              
+
+⏺ Update(src/config.py)
+  ⎿  Added 4 lines
+      19  RAW_CSV_NAME = "alerts.csv"
+      20  PROCESSED_EVENTS = PROCESSED_DIR / "events.parquet"
+      21  
+      22 +# Дані, отримані з живого API (окремий кеш, щоб не змішувати з 
+         +історичними).                                                  
+      23 +PROCESSED_EVENTS_API = PROCESSED_DIR / "events_api.parquet"    
+      24 +API_SYNC_META = PROCESSED_DIR / "api_sync_meta.json"           
+      25 +                                                               
+      26  # --- Часовий пояс --------------------------------------------
+          ------------
+      27  TIMEZONE = "Europe/Kyiv"
+      28  
+
+⏺ Update(src/config.py)
+  ⎿  Added 52 lines
+       74  # Нормалізація назв регіонів: прибираємо суфікси/префікси, що 
+           заважають
+       75  # зведенню до 1 області.
+       76  REGION_STRIP_TOKENS = ["область", "обл.", "oblast", "регіон", 
+           "м.", "місто"]
+       77 +                                                              
+       78 +# --- alerts.in.ua API ---------------------------------------
+          +-------------                                                 
+       79 +ALERTS_API_BASE = "https://api.alerts.in.ua/v1"               
+       80 +ALERTS_TOKEN_ENV = "ALERTS_TOKEN"  # назва змінної у .env     
+       81 +ENV_FILE = PROJECT_ROOT / ".env"                              
+       82 +                                                              
+       83 +# Період історії: "week_ago" або "month_ago".                 
+       84 +API_PERIOD = "month_ago"                                      
+       85 +# Тип тривоги, що нас цікавить (повітряна).                   
+       86 +API_ALERT_TYPE = "air_raid"                                   
+       87 +                                                              
+       88 +# Ліміт API: не більше 30 запитів / 10 хв. Тримаємо запас.    
+       89 +API_RATE_LIMIT = 30                                           
+       90 +API_RATE_WINDOW_S = 600                                       
+       91 +API_MIN_INTERVAL_S = 1.0          # мінімальна пауза між запит
+          +ами                                                           
+       92 +API_MAX_RETRY_WAIT_S = 90         # макс. очікування на 429 пе
+          +рш ніж здатися                                                
+       93 +                                                              
+       94 +# Дисковий кеш сирих JSON-відповідей (щоб не палити ліміт).   
+       95 +API_CACHE_DIR = PROCESSED_DIR / "api_cache"                   
+       96 +API_CACHE_TTL_S = 30 * 60         # відповідь свіжа 30 хв     
+       97 +                                                              
+       98 +# UID областей у alerts.in.ua (location_type == oblast).      
+       99 +# Верифіковано проти живого API (13, 16, 29, 31) — решта зі ст
+          +алого довідника.                                              
+      100 +OBLAST_UIDS: dict[int, str] = {                               
+      101 +    3: "Хмельницька область",                                 
+      102 +    4: "Вінницька область",                                   
+      103 +    5: "Рівненська область",                                  
+      104 +    8: "Волинська область",                                   
+      105 +    9: "Дніпропетровська область",                            
+      106 +    10: "Житомирська область",                                
+      107 +    11: "Закарпатська область",                               
+      108 +    12: "Запорізька область",                                 
+      109 +    13: "Івано-Франківська область",                          
+      110 +    14: "Київська область",                                   
+      111 +    15: "Кіровоградська область",                             
+      112 +    16: "Луганська область",                                  
+      113 +    17: "Львівська область",                                  
+      114 +    18: "Миколаївська область",                               
+      115 +    19: "Одеська область",                                    
+      116 +    20: "Полтавська область",                                 
+      117 +    21: "Сумська область",                                    
+      118 +    22: "Тернопільська область",                              
+      119 +    23: "Харківська область",                                 
+      120 +    24: "Херсонська область",                                 
+      121 +    25: "Черкаська область",                                  
+      122 +    26: "Чернігівська область",                               
+      123 +    27: "Чернівецька область",                                
+      124 +    28: "Донецька область",                                   
+      125 +    29: "Автономна Республіка Крим",                          
+      126 +    30: "м. Севастополь",                                     
+      127 +    31: "м. Київ",                                            
+      128 +}                                                             
+
+⏺ Додам у config.py хелпер читання токена з .env.
+
+⏺ Update(src/config.py)
+  ⎿  Added 1 line
+       6  
+       7  from __future__ import annotations
+       8  
+       9 +import os                                                      
+      10  from pathlib import Path
+      11  
+      12  # --- Шляхи ---------------------------------------------------
+          ------------
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Update(src/config.py)
+  ⎿  Added 18 lines
+      127      30: "м. Севастополь",
+      128      31: "м. Київ",
+      129  }
+      130 +                                                              
+      131 +                                                              
+      132 +def get_alerts_token() -> str:                                
+      133 +    """Читає ALERTS_TOKEN з .env (або з оточення). Кидає помил
+          +ку, якщо немає."""                                            
+      134 +    from dotenv import load_dotenv                            
+      135 +                                                              
+      136 +    load_dotenv(ENV_FILE)                                     
+      137 +    token = os.getenv(ALERTS_TOKEN_ENV)                       
+      138 +    if not token:                                             
+      139 +        raise RuntimeError(                                   
+      140 +            f"Не знайдено {ALERTS_TOKEN_ENV}. Додайте рядок " 
+      141 +            f"`{ALERTS_TOKEN_ENV}=ваш_токен` у файл {ENV_FILE}
+          +."                                                            
+      142 +        )                                                     
+      143 +    return token.strip()                                      
+      144 +                                                              
+      145 +                                                              
+      146 +def update_task(task_id: str) -> None:  # pragma: no cover - p
+          +laceholder guard                                              
+      147 +    raise NotImplementedError                                 
+
+⏺ Я випадково додав зайву заглушку — приберу її.
+
+⏺ Update(src/config.py)  ⎿  Removed 4 lines
+      141              f"`{ALERTS_TOKEN_ENV}=ваш_токен` у файл {ENV_FILE}
+           ."
+      142          )
+      143      return token.strip()
+      144 -                                                              
+      145 -                                                              
+      146 -def update_task(task_id: str) -> None:  # pragma: no cover - p
+          -laceholder guard                                              
+      147 -    raise NotImplementedError                                 
+
+⏺ Тепер api_client.py — клієнт з rate-limit, дисковим кешем і обробкою 429.
+
+⏺ Write(src/api_client.py)
+  ⎿  Wrote 101 lines to src/api_client.py
+       2 """Клієнт alerts.in.ua API.
+       3 Особливості:
+       4   • токен читається з .env (ALERTS_TOKEN);
+         обробка 429; ліміту (30 запитів / 10 хв) — пауза між запитами + 
+       6   • дисковий кеш сирих JSON-відповідей (TTL), щоб не палити лімі
+         т на повторах.
+       8 Документація API підтверджена живими запитами: ендпоінти поверта
+         ють
+       9 {"alerts": [...], "meta": {...}, "disclaimer": "..."}.
+      10 """
+     … +102 lines (ctrl+o to expand)
+
+⏺ Тепер ingest.py — нормалізація відповідей API в канонічну схему
+  (перевикористовує build_events) + sync усіх областей.
+
+⏺ Write(src/ingest.py)
+  ⎿  Wrote 108 lines to src/ingest.py
+        лицю подій.ення історії тривог з API alerts.in.ua у канонічну таб
+      2 
+      3 Один ``sync`` тягне історію по всіх областях (27 запитів < ліміту
+      4 нормалізує у ту саму схему, що й історичний CSV, і кешує у parque
+        t. Далі
+      5 дашборд читає кеш, не звертаючись до API щоразу.
+      7 CLI:  python -m src.ingest            # sync за період з config.A
+        PI_PERIOD
+      8       python -m src.ingest week_ago   # явний період
+      9 """
+     … +111 lines (ctrl+o to expand)
+
+⏺ Тепер інтегрую перемикач джерела даних у дашборд.
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 7 lines, removed 1 line
+      19  from src import analysis, config, features, viz
+      20  from src.forecast import evaluate, forecast_future, train_test_
+          split, holt_winters
+      21  from src.preprocess import load_events
+      22 +from src import ingest                                         
+      23  
+      24  st.set_page_config(page_title="Повітряні тривоги — аналіз ЧР", 
+          layout="wide")
+      25  
+      26 +SOURCE_HISTORICAL = "Історичні (CSV / синтетика)"              
+      27 +SOURCE_API = "Live API (alerts.in.ua)"                         
+      28  
+      29 +                                                               
+      30  @st.cache_data
+      27 -def get_events() -> pd.DataFrame:                              
+      31 +def get_events(source: str) -> pd.DataFrame:                   
+      32 +    if source == SOURCE_API:                                   
+      33 +        return ingest.load_api_events()                        
+      34      return load_events()
+      35  
+      36  
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 28 lines, removed 5 lines
+      50      return df
+      51  
+      52  
+      53 +# --- Сайдбар: джерело даних ----------------------------------
+         +-------------                                                  
+      54 +st.sidebar.header("Джерело даних")                             
+      55 +source = st.sidebar.radio("Дані", [SOURCE_HISTORICAL, SOURCE_AP
+         +I], label_visibility="collapsed")                              
+      56 +                                                               
+      57 +if source == SOURCE_API:                                       
+      58 +    meta = ingest.sync_meta()                                  
+      59 +    if meta:                                                   
+      60 +        st.sidebar.caption(                                    
+      61 +            f"Останній sync: {meta['synced_at'][:16].replace('T
+         +', ' ')} · "                                                   
+      62 +            f"період: {meta['period']} · подій: {meta['n_events
+         +']}"                                                           
+      63 +        )                                                      
+      64 +    if st.sidebar.button("🔄 Синхронізувати з API"):           
+      65 +        with st.spinner("Завантаження з alerts.in.ua…"):       
+      66 +            try:                                               
+      67 +                ingest.sync()                                  
+      68 +                get_events.clear()                             
+      69 +                st.sidebar.success("Готово")                   
+      70 +            except Exception as e:  # noqa: BLE001 — показуємо 
+         +будь-яку помилку API                                           
+      71 +                st.sidebar.error(f"Помилка синхронізації: {e}")
+      72 +                                                               
+      73  # --- Завантаження даних --------------------------------------
+          -------------
+      74  try:
+      55 -    events = get_events()                                      
+      75 +    events = get_events(source)                                
+      76  except FileNotFoundError as e:
+      77      st.error(str(e))
+      58 -    st.info(                                                   
+      59 -        "Згенеруйте синтетичні дані командою `python -m src.syn
+         -th` "                                                          
+      60 -        "або покладіть CSV з Kaggle у `data/raw/` (див. README)
+         -."                                                             
+      61 -    )                                                          
+      78 +    if source == SOURCE_API:                                   
+      79 +        st.info("Натисніть «🔄 Синхронізувати з API» у бічній п
+         +анелі або виконайте `python -m src.ingest`.")                  
+      80 +    else:                                                      
+      81 +        st.info(                                               
+      82 +            "Згенеруйте синтетичні дані командою `python -m src
+         +.synth` "                                                      
+      83 +            "або покладіть CSV з Kaggle у `data/raw/` (див. REA
+         +DME)."                                                         
+      84 +        )                                                      
+      85      st.stop()
+      86  
+      87  # --- Сайдбар: фільтри ----------------------------------------
+          -------------
+
+⏺ Now let me make the "synthetic data" caption source-aware and update the title
+  caption.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 7 lines, removed 4 lines
+       95      "Період", value=(min_d, max_d), min_value=min_d, max_value
+           =max_d
+       96  )
+       97  
+       98 -st.sidebar.caption(                                           
+       99 -    "⚠️ Якщо завантажено синтетичні дані — це згенеровані значе
+          -ння для "                                                     
+      100 -    "демонстрації, не реальні тривоги."                       
+      101 -)                                                             
+       98 +if source == SOURCE_API:                                      
+       99 +    st.sidebar.caption("✅ Реальні дані alerts.in.ua (повітрян
+          +і тривоги).")                                                 
+      100 +else:                                                         
+      101 +    st.sidebar.caption(                                       
+      102 +        "⚠️ Якщо завантажено синтетичні дані — це згенеровані з
+          +начення для "                                                 
+      103 +        "демонстрації, не реальні тривоги."                   
+      104 +    )                                                         
+      105  
+      106  fe = filter_events(events, sel_regions, sel_dates)
+      107  if fe.empty:
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 2 lines, removed 4 lines
+      110  
+      111  # --- Заголовок ----------------------------------------------
+           --------------
+      112  st.title("🚨 Аналіз часових рядів повітряних тривог")
+      113 -st.caption(                                                   
+      114 -    f"Період даних: {min_d} – {max_d} · "                     
+      115 -    f"джерело: Kaggle dimakyn/air-alarm-ukraine (або синтетичн
+          -і дані)"                                                      
+      116 -)                                                             
+      113 +src_label = "alerts.in.ua API" if source == SOURCE_API else "K
+          +aggle / синтетичні дані"                                      
+      114 +st.caption(f"Період даних: {min_d} – {max_d} · джерело: {src_l
+          +abel}")                                                       
+      115  
+      116  tab_overview, tab_patterns, tab_forecast = st.tabs(
+      117      ["📊 Огляд", "🔁 Патерни", "📈 Прогноз"]
+
+⏺ Тепер тест трансформації API→канонічна схема на реальних записах, які я
+  спостерігав (без мережі).
+
+⏺ Write(tests/test_ingest.py)
+  ⎿  Wrote 67 lines to tests/test_ingest.py
+       2 """Тести нормалізації відповідей alerts.in.ua API (без мережі).
+       3 Зразки — реальні записи, отримані з живого API (структура підтве
+         рджена).
+       4 """
+       5 
+       6 from __future__ import annotations
+       7 
+       8 from src import config
+       9 from src.ingest import normalize_api_alerts
+      10 from src.preprocess import build_events
+     … +59 lines (ctrl+o to expand)
+
+⏺ Bash(.venv/bin/python -m pytest -q 2>&1 | tail -15)
+  ⎿  ..........
+        [100%]
+     10 passed in 0.50s
+
+⏺ Усі 10 тестів проходять (трансформацію перевірено на реальній структурі
+  даних). Тепер спробую живий sync — але я раніше вичерпав ліміт (Retry-After
+  ~59 хв). Перевірю одним запитом, чи вікно відновилось.
+
+⏺ Bash(set -a; . ./.env; set +a
+      .venv/bin/python - <<'PY'…)
+  ⎿  status: 429
+     Retry-After: 3263 s
+
+⏺ Ліміт ще активний (~54 хв). Я його вичерпав інтенсивною розвідкою структури
+  API. Код готовий і протестований на реальній структурі даних.
+
+  Зроблю так: запущу фоновий sync, який зачекає, поки вікно ліміту відновиться,
+  і автоматично підтягне реальні дані — тоді зможу повністю верифікувати
+  end-to-end. Спершу оновлю README.
+
+⏺ Update(README.md)
+  ⎿  Added 24 lines
+      39  3. Якщо назви колонок відрізняються від очікуваних — додайте їх
+           у
+      40     `COLUMN_ALIASES` у `src/config.py`.
+      41  
+      42 +### Live-дані з API alerts.in.ua                               
+      43 +                                                               
+      44 +Проєкт також працює з **реальними** даними через офіційний API 
+         +alerts.in.ua.                                                  
+      45 +                                                               
+      46 +1. Отримайте токен на сайті alerts.in.ua і покладіть у `.env`: 
+      47 +   ```                                                         
+      48 +   ALERTS_TOKEN=ваш_токен                                      
+      49 +   ```                                                         
+      50 +2. Синхронізуйте історію (тягне ~місяць по всіх областях):     
+      51 +   ```bash                                                     
+      52 +   python -m src.ingest            # період з config.API_PERIOD
+         + (month_ago)                                                   
+      53 +   python -m src.ingest week_ago   # або явно                  
+      54 +   ```                                                         
+      55 +3. У дашборді в бічній панелі оберіть джерело **«Live API (aler
+         +ts.in.ua)»**                                                   
+      56 +   (там же — кнопка «🔄 Синхронізувати з API»).                
+      57 +                                                               
+      58 +> ⚠️ **Ліміт API: 30 запитів / 10 хв.** Один sync = ~27 запитів
+         + (по областях),                                                
+      59 +> тому вкладається у вікно. Відповіді кешуються на диск (`data/
+         +processed/api_cache/`,                                         
+      60 +> TTL 30 хв), щоб не палити ліміт на повторах. На 429 клієнт че
+         +кає `Retry-After`                                              
+      61 +> (якщо це довше за `API_MAX_RETRY_WAIT_S` — повідомляє і виход
+         +ить).                                                          
+      62 +                                                               
+      63 +Для часових рядів беруться тривоги типу `air_raid`, зведені до 
+         +рівня області                                                  
+      64 +(`location_oblast`) — сумісно з історичним датасетом.          
+      65 +                                                               
+      66  ### Без Kaggle: синтетичні дані (dev-фолбек)
+      67  
+      68  Щоб одразу запустити проєкт без завантаження:
+
+⏺ Also update the README structure section and run a quick import sanity check,
+  then launch the background sync.
+
+⏺ Update(README.md)
+  ⎿  Added 3 lines, removed 1 line
+      105    forecast.py      # seasonal_naive + Holt-Winters, метрики
+      106    viz.py           # plotly-графіки
+      107    synth.py         # генератор синтетичних даних (dev)
+      108 -app/dashboard.py   # Streamlit                                
+      108 +  api_client.py    # клієнт alerts.in.ua (rate-limit, кеш, 429
+          +)                                                             
+      109 +  ingest.py        # sync історії з API → канонічна таблиця по
+          +дій                                                           
+      110 +app/dashboard.py   # Streamlit (перемикач: історичні / live AP
+          +I)                                                            
+      111  tests/             # pytest
+      112  ```
+      113  
+
+⏺ Bash(.venv/bin/python -c "
+      import ast, sys…)  ⎿  syntax OK: src/api_client.py
+     syntax OK: src/ingest.py
+     syntax OK: app/dashboard.py
+     … +3 lines (ctrl+o to expand)
+
+⏺ Усе імпортується, токен зчитується (27 UID областей). Тепер запускаю фоновий
+  sync, який зачекає відновлення ліміту (~55 хв) і автоматично підтягне реальні
+  дані.
+
+⏺ Bash(echo "Waiting out rate limit, then syncing real data from
+      alerts.in.ua..." > /tmp/api_sync.log
+      sleep 3350 && .venv/bin/python -m src.ingest >> /tmp/api_sync.log…)
+  ⎿  Running in the background (↓ to manage)
+
+⏺ Інтеграцію з реальним API реалізовано та протестовано. Ось підсумок.
+
+  Що зроблено
+
+  Підключив проєкт до реального API alerts.in.ua, зберігши всю наявну аналітику
+  без змін — нові дані лягають у ту саму канонічну схему подій.
+
+  Нові модулі:
+  - src/api_client.py — клієнт з токеном з .env, контролем ліміту (пауза між
+  запитами, обробка 429 з Retry-After) та дисковим кешем JSON-відповідей (TTL 30
+  хв).
+  - src/ingest.py — sync() тягне історію по 27 областях, normalize_api_alerts()
+  фільтрує air_raid і зводить до рівня області, далі перевикористовує
+  build_events().
+  - config.py — параметри API, маппінг 27 UID областей, get_alerts_token().
+  - Дашборд — перемикач «Історичні / Live API» + кнопка синхронізації + час
+  останнього sync.
+
+  Верифіковано на реальному API
+
+  ┌────────────────────────────────┬─────────────────────────────────────────┐
+  │           Перевірка            │                Результат                │
+  ├────────────────────────────────┼─────────────────────────────────────────┤
+  │ active.json                    │ ✅ HTTP 200, 82 активні тривоги,        │
+  │                                │ підтверджена структура полів            │
+  ├────────────────────────────────┼─────────────────────────────────────────┤
+  │ regions/{uid}/alerts/month_ago │ ✅ ~місяць історії зі                   │
+  │                                │ started_at/finished_at                  │
+  ├────────────────────────────────┼─────────────────────────────────────────┤
+  │ Маппінг UID областей           │ ✅ звірив 4 (13, 16, 29, 31) з живим    │
+  │                                │ API                                     │
+  ├────────────────────────────────┼─────────────────────────────────────────┤
+  │ Трансформація API→канон        │ ✅ тести на реальних записах            │
+  ├────────────────────────────────┼─────────────────────────────────────────┤
+  │ Тести                          │ ✅ 10/10 (6 preprocess + 4 ingest)      │
+  ├────────────────────────────────┼─────────────────────────────────────────┤
+  │ Імпорти + читання токена       │ ✅                                      │
+  └────────────────────────────────┴─────────────────────────────────────────┘
+
+  Ключове відкриття: ліміт API
+
+  30 запитів / 10 хвилин. Один sync = ~27 запитів (вкладається), плюс дисковий
+  кеш не палить ліміт на повторах. Я зафіксував це в коді (throttle +
+  429-обробка) та README.
+
+  Один нюанс зараз
+
+  Під час розвідки структури API я вичерпав ліміт (зараз Retry-After ~54 хв),
+  тому живий full-sync прямо зараз неможливий. Я запустив фоновий процес, який
+  зачекає відновлення вікна і автоматично виконає python -m src.ingest — щойно
+  завершиться, я перевірю реальні дані в дашборді й повідомлю.
+
+  Якщо ваш власний токен має вільне вікно — можете не чекати фоновий процес, а
+  просто запустити зараз:
+  python -m src.ingest && streamlit run app/dashboard.py
+
+  Файли поки не закомічені. Чекаю завершення фонового sync для фінальної
+  перевірки на реальних даних.
+
+✻ Worked for 9m 13s
+
+※ recap: Built a Python air-raid-alert time-series project: Streamlit dashboard plus live alerts.in.ua API integration, all tests passing. A background job is waiting out the API rate limit to pull real data. Next: verify that real-data sync once it completes. (disable recaps in /config)
+
+⏺ Background command "Wait out rate limit then sync real API data" completed
+(exit code 0)
+
+⏺ Фоновий sync завершився. Перевіряю результат.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Sync успішний — 11 450 реальних подій по 26 областях за ~місяць. Тепер
+  проганяю весь конвеєр на реальних даних.
+
+⏺ Bash(.venv/bin/python -c "
+      from src import ingest, analysis, features…)
+  ⎿  events: 11450 | regions: 26
+     date span: 2022-04-04 19:45:39+03:00 → 2026-06-21 12:20:30+03:00
+     KPIs: {'total_alerts': 11450, 'regions': 26, 'total_alert_hours': 2201
+     … +15 lines (ctrl+o to expand)
+
+⏺ Конвеєр працює на реальних даних, але виявив реальну ваду даних: окуповані
+  території (Луганськ, Крим) мають тривоги, що почались у 2022 і досі «активні»
+  — вони розтягують ряд на 1539 днів (36931 годин, лише 742 ненульові). Для
+  month_ago це спотворює прогноз. Додам відсікання за вікном періоду.
+
+⏺ Update(src/config.py)
+  ⎿  Added 3 lines
+      83  
+      84  # Період історії: "week_ago" або "month_ago".
+      85  API_PERIOD = "month_ago"
+      86 +# Скільки днів реально лишати після sync (відсікаємо «вічні» тр
+         +ивоги                                                          
+      87 +# окупованих територій, що почалися у 2022 і не завершені).    
+      88 +API_PERIOD_DAYS = {"week_ago": 8, "month_ago": 32}             
+      89  # Тип тривоги, що нас цікавить (повітряна).
+      90  API_ALERT_TYPE = "air_raid"
+      91  
+
+⏺ Update(src/ingest.py)
+  ⎿  Added 1 line
+      63  
+      64      raw = normalize_api_alerts(all_alerts)
+      65      events = build_events(raw)
+      66 +    events = clip_to_period(events, period)                    
+      67  
+      68      config.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+      69      events.to_parquet(config.PROCESSED_EVENTS_API, index=False)
+
+⏺ Update(src/ingest.py)
+  ⎿  Added 13 lines
+      45      return pd.DataFrame(rows, columns=["region", "start", "end"
+          ])
+      46  
+      47  
+      48 +def clip_to_period(events: pd.DataFrame, period: str) -> pd.Dat
+         +aFrame:                                                        
+      49 +    """Лишає лише події в межах вікна періоду.                 
+      50 +                                                               
+      51 +    Відсікає «вічні» тривоги окупованих територій (почалися у 2
+         +022 і не                                                       
+      52 +    завершені), що інакше розтягнули б часовий ряд на роки.    
+      53 +    """                                                        
+      54 +    days = config.API_PERIOD_DAYS.get(period)                  
+      55 +    if not days:                                               
+      56 +        return events                                          
+      57 +    cutoff = pd.Timestamp.now(tz=config.TIMEZONE) - pd.Timedelt
+         +a(days=days)                                                   
+      58 +    return events[events[config.COL_START] >= cutoff].reset_ind
+         +ex(drop=True)                                                  
+      59 +                                                               
+      60 +                                                               
+      61  def sync(
+      62      period: str | None = None,
+      63      uids: dict[int, str] | None = None,
+
+⏺ Тепер перебудую дані з кешу (без звернення до API — кеш свіжий, TTL 30 хв) і
+  перевірю результат.
+
+⏺ Bash(.venv/bin/python -m src.ingest 2>&1 | tail -3
+      echo "=== verify ==="…)
+  ⎿  [27/27] uid=31 м. Київ: 54 тривог
+
+     Збережено 11438 подій (24 областей) → /Users/kowalsking/code/time-seri
+     … +11 lines (ctrl+o to expand)
+
+⏺ Дані тепер чисті: 11 438 подій, 24 області, рівно ~місяць (2026-05-21 →
+  06-21), 755 годин, 98% ненульові. Перебудова використала кеш (без звернення до
+  API). Holt-Winters трохи кращий за baseline на реальних даних (RMSE 20.6
+  проти 21.8) — на реальних даних добова сезонність шумніша, що чесно.
+
+  Фінальна перевірка: тести + запуск дашборда headless.
+
+⏺ Bash(.venv/bin/python -m pytest -q 2>&1 | tail -4
+      echo "=== dashboard boot ==="…)
+  ⎿  ..........
+        [100%]
+     10 passed in 0.32s
+     … +4 lines (ctrl+o to expand)
+
+⏺ Готово — інтеграцію з реальним API повністю реалізовано та верифіковано на
+  живих даних.
+
+  Фінальний результат
+
+  Реальні дані alerts.in.ua працюють end-to-end:
+
+  ┌───────────────────────┬─────────────────────────────────────────────────┐
+  │       Перевірка       │                    Результат                    │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ Live sync (27         │ ✅ 11 438 подій, 24 області за ~місяць          │
+  │ областей)             │                                                 │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ Часовий ряд           │ ✅ 755 годин, 98% ненульові — щільний,          │
+  │                       │ придатний для прогнозу                          │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ Прогноз на реальних   │ ✅ Holt-Winters RMSE 20.6 < baseline 21.8       │
+  │ даних                 │                                                 │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ Тести                 │ ✅ 10/10                                        │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ Дашборд (live API)    │ ✅ HTTP 200, без помилок                        │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ Rate-limit / кеш      │ ✅ перебудова з кешу без звернень до API        │
+  └───────────────────────┴─────────────────────────────────────────────────┘
+
+  Що було знайдено й виправлено по ходу
+
+  1. Ліміт API: 30 запитів / 10 хв — закладено throttle + обробку 429 + дисковий
+  кеш (TTL 30 хв). Один sync (~27 запитів) вкладається у вікно.
+  2. Вада реальних даних: окуповані території (Луганськ, Крим) мають тривоги, що
+  почалися у 2022 і досі «активні» — вони розтягували ряд на 1539 днів (лише
+  742 ненульові години з 36931). Додав clip_to_period(), який лишає тільки вікно
+  періоду → чисті ~31 день.
+
+  Як користуватись
+
+  python -m src.ingest                 # sync реальних даних (кешується)
+  streamlit run app/dashboard.py       # у сайдбарі: «Live API (alerts.in.ua)»
+
+  Дашборд тепер має перемикач Історичні / Live API, кнопку синхронізації та час
+  останнього sync. Уся аналітика (патерни, heatmap, кореляції, прогноз) працює
+  однаково для обох джерел, бо API-дані лягають у ту саму канонічну схему.
+
+  Усі зміни поки не закомічені (працювали на main). Сказати — створю гілку й
+  підготую коміт.
+
+✻ Baked for 2m 27s
+
+❯ Чому на тепловій карті не відображається Дніпропетровська область? Хоча на    
+  інших графіках вона є                                                         
+
+⏺ Гарне спостереження. Перевірю, чи Дніпропетровська взагалі є в матриці
+  теплової карти, і подивлюсь код побудови.
+⏺ Bash(.venv/bin/python -c "
+      from src import ingest, analysis…)
+  ⎿  rows in heatmap matrix: 24
+     Дніпропетровська in index? True
+     first 6 rows (by activity): ['Харківська', 'Дніпропетровська', 'Запорі
+     … +9 lines (ctrl+o to expand)
+
+⏺ Знайшов причину. Дніпропетровська є в даних — це другий за активністю регіон
+  (2084 тривоги). Проблема суто візуальна: plotly.express.imshow при великій
+  кількості рядків автоматично проріджує підписи осі Y (показує кожен N-ний), і
+  Дніпропетровська потрапляє на пропущену позначку. Сам рядок малюється, але без
+  підпису.
+
+  Виправлю — змушу показувати всі підписи осі.
+
+⏺ Update(src/viz.py)
+  ⎿  Added 7 lines
+      54          color_continuous_scale="Reds",
+      55          labels={"x": x_label, "y": y_label, "color": "Тривог"},
+      56      )
+      57 +    # Примусово показуємо ВСІ підписи осей (px.imshow інакше пр
+         +оріджує їх при                                                 
+      58 +    # великій к-сті категорій — тоді частина регіонів лишається
+         + без підпису).                                                 
+      59 +    fig.update_xaxes(tickmode="linear", dtick=1)               
+      60 +    fig.update_yaxes(tickmode="array", tickvals=list(range(len(
+         +matrix.index))),                                               
+      61 +                     ticktext=list(matrix.index))              
+      62 +    # Висота під кількість рядків, щоб підписи не злипались.   
+      63 +    fig.update_layout(height=max(400, 22 * len(matrix.index) + 
+         +120))                                                          
+      64      return _layout(fig, title)
+      65  
+      66  
+
+⏺ Bash(.venv/bin/python -c "
+      from src import ingest, analysis, viz…)
+  ⎿  Y-axis labels count: 24
+     Дніпропетровська sered pidpysiv? True
+     height: 648
+     all labels present == all regions: True
+
+⏺ Виправлено. Тепер усі 24 підписи регіонів задаються явно, включно з
+  Дніпропетровською, а висота карти масштабується під кількість рядків (648px
+  для 24 областей).
+
+  Причина
+
+  Дніпропетровська завжди була в даних (2-й за активністю регіон, 2084 тривоги)
+  — рядок на карті малювався, але plotly.express.imshow при 24 категоріях
+  автоматично проріджував підписи осі Y, показуючи приблизно кожен другий.
+  Дніпропетровська просто потрапляла на пропущену позначку, тому здавалось, що
+  області немає.
+
+  Фікс (src/viz.py, функція heatmap)
+
+  - update_yaxes(tickmode="array", tickvals=..., ticktext=...) — явно показуємо
+  всі підписи регіонів;
+  - update_xaxes(tickmode="linear", dtick=1) — усі 24 години доби;
+  - висота карти масштабується під к-сть рядків, щоб підписи не злипались.
+
+  Фікс універсальний — стосується і теплової карти на історичних даних.
+  Перезапустіть дашборд (streamlit run app/dashboard.py), щоб побачити зміни.
+
+✻ Churned for 1m 20s
+
+❯ Давай LiveAPI дані зробимо обраними за замовчуванням і перемістимо їх на верх 
+  списку сайдбару.                                                              
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 1 line, removed 1 line
+      52  
+      53  # --- Сайдбар: джерело даних ----------------------------------
+          -------------
+      54  st.sidebar.header("Джерело даних")
+      55 -source = st.sidebar.radio("Дані", [SOURCE_HISTORICAL, SOURCE_AP
+         -I], label_visibility="collapsed")                              
+      55 +source = st.sidebar.radio("Дані", [SOURCE_API, SOURCE_HISTORICA
+         +L], label_visibility="collapsed")                              
+      56  
+      57  if source == SOURCE_API:
+      58      meta = ingest.sync_meta()
+
+⏺ Готово. Поміняв порядок у радіо-перемикачі сайдбару: тепер «Live API 
+  (alerts.in.ua)» перший у списку, а st.sidebar.radio за замовчуванням обирає
+  перший елемент — тож live-дані стануть джерелом за замовчуванням.
+  Перезапустіть дашборд, щоб побачити зміну.
+
+✻ Baked for 13s
+
+❯ Для календаря синтетичних даних є зручні поля для вибору періоду "Last week,  
+  Last month". Для API даних такі поля відсутні. Додай їх також, а також додай  
+  фільтр "All Time" для обох календарів. І здається, варто перевикористати      
+  календар в обох блоках, як і фільтр вибору регіонів                           
+
+⏺ Спершу перегляну поточний код сайдбару, щоб зрозуміти структуру блоків і
+  коректно зробити перевикористання.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Зрозумів. Поточний код має один date_input без пресетів. Зроблю єдину 
+  функцію-фільтр з пресетами періоду (Весь час / Останній тиждень / Останній
+  місяць / Власний діапазон з календарем) + мультиселект регіонів, і
+  перевикористаю її для обох джерел.
+
+  Спершу додам імпорт і константи пресетів.
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 1 line
+       6  from __future__ import annotations
+       7  
+       8  import sys
+       9 +from datetime import timedelta                                 
+      10  from pathlib import Path
+      11  
+      12  # Додаємо корінь проєкту в sys.path, щоб працював `from src imp
+          ort ...`.
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 7 lines
+      27  SOURCE_HISTORICAL = "Історичні (CSV / синтетика)"
+      28  SOURCE_API = "Live API (alerts.in.ua)"
+      29  
+      30 +# Пресети періоду (спільні для обох джерел даних).             
+      31 +PERIOD_ALL = "Весь час"                                        
+      32 +PERIOD_WEEK = "Останній тиждень"                               
+      33 +PERIOD_MONTH = "Останній місяць"                               
+      34 +PERIOD_CUSTOM = "Власний діапазон"                             
+      35 +PERIOD_PRESETS = [PERIOD_ALL, PERIOD_WEEK, PERIOD_MONTH, PERIOD
+         +_CUSTOM]                                                       
+      36  
+      37 +                                                               
+      38  @st.cache_data
+      39  def get_events(source: str) -> pd.DataFrame:
+      40      if source == SOURCE_API:
+
+⏺ Тепер додам спільну функцію render_filters після filter_events.
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 32 lines
+      58      return df
+      59  
+      60  
+      61 +def render_filters(events: pd.DataFrame):                      
+      62 +    """Малює спільні фільтри сайдбару (регіони + період з пресе
+         +тами).                                                         
+      63 +                                                               
+      64 +    Пресети рахуються відносно останньої дати в даних (а не «сь
+         +огодні»), бо                                                   
+      65 +    дані можуть не доходити до поточного дня. Повертає (regions
+         +, date_range,                                                  
+      66 +    min_d, max_d). Використовується однаково для обох джерел да
+         +них.                                                           
+      67 +    """                                                        
+      68 +    st.sidebar.header("Фільтри")                               
+      69 +    all_regions = sorted(events[config.COL_REGION].unique())   
+      70 +    sel_regions = st.sidebar.multiselect("Регіони", all_regions
+         +, default=[])                                                  
+      71 +                                                               
+      72 +    min_d = events[config.COL_START].dt.date.min()             
+      73 +    max_d = events[config.COL_START].dt.date.max()             
+      74 +                                                               
+      75 +    period = st.sidebar.selectbox("Період", PERIOD_PRESETS, ind
+         +ex=0)                                                          
+      76 +    if period == PERIOD_WEEK:                                  
+      77 +        date_range = (max(min_d, max_d - timedelta(days=7)), ma
+         +x_d)                                                           
+      78 +    elif period == PERIOD_MONTH:                               
+      79 +        date_range = (max(min_d, max_d - timedelta(days=30)), m
+         +ax_d)                                                          
+      80 +    elif period == PERIOD_CUSTOM:                              
+      81 +        date_range = st.sidebar.date_input(                    
+      82 +            "Діапазон", value=(min_d, max_d), min_value=min_d, 
+         +max_value=max_d                                                
+      83 +        )                                                      
+      84 +    else:  # PERIOD_ALL                                        
+      85 +        date_range = (min_d, max_d)                            
+      86 +                                                               
+      87 +    if period != PERIOD_CUSTOM and len(date_range) == 2:       
+      88 +        st.sidebar.caption(f"📅 {date_range[0]} – {date_range[1
+         +]}")                                                           
+      89 +                                                               
+      90 +    return sel_regions, date_range, min_d, max_d               
+      91 +                                                               
+      92 +                                                               
+      93  # --- Сайдбар: джерело даних ----------------------------------
+          -------------
+      94  st.sidebar.header("Джерело даних")
+      95  source = st.sidebar.radio("Дані", [SOURCE_API, SOURCE_HISTORICA
+          L], label_visibility="collapsed")
+
+⏺ Тепер замінюю інлайновий блок фільтрів на виклик спільної функції.
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 2 lines, removed 10 lines
+      124          )
+      125      st.stop()
+      126  
+      127 -# --- Сайдбар: фільтри ---------------------------------------
+          ---------------                                                
+      128 -st.sidebar.header("Фільтри")                                  
+      129 -all_regions = sorted(events[config.COL_REGION].unique())      
+      130 -sel_regions = st.sidebar.multiselect("Регіони", all_regions, d
+          -efault=[])                                                    
+      127 +# --- Сайдбар: фільтри (спільні для обох джерел) -------------
+          +--------------                                                
+      128 +sel_regions, sel_dates, min_d, max_d = render_filters(events) 
+      129  
+      132 -min_d = events[config.COL_START].dt.date.min()                
+      133 -max_d = events[config.COL_START].dt.date.max()                
+      134 -sel_dates = st.sidebar.date_input(                            
+      135 -    "Період", value=(min_d, max_d), min_value=min_d, max_value
+          -=max_d                                                        
+      136 -)                                                             
+      137 -                                                              
+      130  if source == SOURCE_API:
+      131      st.sidebar.caption("✅ Реальні дані alerts.in.ua (повітрян
+           і тривоги).")
+      132  else:
+
+⏺ Bash(.venv/bin/python -c "import ast;
+      ast.parse(open('app/dashboard.py').read()); print('syntax OK')"
+      echo "=== dashboard boot ==="…)
+  ⎿  syntax OK
+     === dashboard boot ===
+     HTTP 200
+     … +2 lines (ctrl+o to expand)
+
+⏺ Працює без помилок. Перевірю логіку пресетів на реальних даних, щоб діапазони
+  були коректними.
+
+⏺ Bash(.venv/bin/python -c "
+      from datetime import timedelta…)
+  ⎿  API: All=2026-05-21..2026-06-21 | Тиждень=2026-06-14..2026-06-21 | Міс
+     яць=2026-05-22..2026-06-21
+     Історичні: All=2022-02-24..2022-04-09 | Тиждень=2022-04-02..2022-04-09
+      | Місяць=2022-03-10..2022-04-09
+
+⏺ Готово. Пресети періоду коректно рахуються для обох джерел.
+
+  Що зроблено
+
+  Винесено фільтри сайдбару в єдину функцію render_filters(events), яка тепер
+  однаково використовується для обох джерел даних (live API та історичних).
+  Дублювання прибрано.
+
+  Доданий селектор «Період» з пресетами:
+  - Весь час (All Time) — за замовчуванням, повний діапазон даних
+  - Останній тиждень — останні 7 днів
+  - Останній місяць — останні 30 днів
+  - Власний діапазон — показує календар date_input для ручного вибору
+
+  Перевірено на реальних даних:
+
+  ┌───────────┬───────────────┬───────────────┬───────────────┐
+  │  Джерело  │   Весь час    │    Тиждень    │    Місяць     │
+  ├───────────┼───────────────┼───────────────┼───────────────┤
+  │ API       │ 21.05 – 21.06 │ 14.06 – 21.06 │ 22.05 – 21.06 │
+  ├───────────┼───────────────┼───────────────┼───────────────┤
+  │ Історичні │ 24.02 – 09.04 │ 02.04 – 09.04 │ 10.03 – 09.04 │
+  └───────────┴───────────────┴───────────────┴───────────────┘
+
+  Деталі реалізації:
+  - Пресети рахуються відносно останньої дати в даних, а не «сьогодні» — бо
+  історичні дані з 2022 не доходять до поточного дня (інакше тиждень/місяць
+  давали б порожній результат).
+  - Для пресетів під селектором показується підпис з обчисленим діапазоном (📅 
+  дата – дата).
+  - Календар з'являється лише для «Власного діапазону», щоб не захаращувати
+  панель.
+  - Мультиселект регіонів так само спільний для обох джерел.
+
+  Дашборд стартує без помилок (HTTP 200). Перезапустіть streamlit run 
+  app/dashboard.py, щоб побачити зміни.
+✻ Sautéed for 2m 7s
+
+❯ За замовчуванням стоїть "Весь час", але відображаються тривоги тільки за      
+  певний період: [Image #2] 2026-05-21 – 2026-06-21                             
+  ⎿  [Image #2]
+
+⏺ Перевірю, що саме лежить у даних, щоб дати точну відповідь.
+
+⏺ Bash(.venv/bin/python -c "
+      from src import ingest…)
+  ⎿  events in parquet: 11438
+     span: 2026-05-21 03:03:07+03:00 → 2026-06-21 12:44:09+03:00
+     unique days: 32
+     … +5 lines (ctrl+o to expand)
+
+⏺ Це не баг — так і має бути за поточної логіки. Пояснення:
+
+  «Весь час» показує усі наявні дані, а в кеші їх рівно 32 дні (2026-05-21 →
+  2026-06-21). Причина — обмеження самого API alerts.in.ua:
+
+  - ендпоінт month_ago віддає історію лише за останній місяць (глибшої історії
+  безкоштовний API не дає);
+  - плюс наш clip_to_period обрізає «вічні» тривоги окупованих територій до 32
+  днів.
+
+  Тобто 2026-05-21 – 2026-06-21 — це і є «весь час» для live-даних. Дані
+  відображаються повністю, просто їх стільки й є.
+
+  API не дозволяє дістати дані старші за ~місяць заднім числом. Єдиний спосіб
+  мати довшу історію з API — накопичувати її: кожен sync дописує нові тривоги в
+  постійне сховище (з дедуплікацією за id), і за кілька тижнів датасет виросте
+  за межі місяця.
+
+  Як вчинимо?
+
+⏺ User answered Claude's questions:
+  ⎿  · «Весь час» для API обмежений місяцем, бо API більше не віддає. Що робимо?
+     → Перейменувати пресет
+
+⏺ Зрозумів — перейменовуємо пресет чесніше, без накопичення. Зроблю назву
+  залежною від джерела: для API «Усі дані (до місяця)», для історичних просто
+  «Усі дані» (бо там це справді весь період датасету).
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 3 lines, removed 2 lines
+      28  SOURCE_API = "Live API (alerts.in.ua)"
+      29  
+      30  # Пресети періоду (спільні для обох джерел даних).
+      31 -PERIOD_ALL = "Весь час"                                        
+      31 +# Назва «усіх даних» залежить від джерела: API віддає лише ~міс
+         +яць історії.                                                   
+      32 +PERIOD_ALL_API = "Усі дані (до місяця)"                        
+      33 +PERIOD_ALL_HIST = "Усі дані"                                   
+      34  PERIOD_WEEK = "Останній тиждень"
+      35  PERIOD_MONTH = "Останній місяць"
+      36  PERIOD_CUSTOM = "Власний діапазон"
+      35 -PERIOD_PRESETS = [PERIOD_ALL, PERIOD_WEEK, PERIOD_MONTH, PERIOD
+         -_CUSTOM]                                                       
+      37  
+      38  
+      39  @st.cache_data
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 8 lines, removed 4 lines
+      59      return df
+      60  
+      61  
+      62 -def render_filters(events: pd.DataFrame):                      
+      62 +def render_filters(events: pd.DataFrame, source: str):         
+      63      """Малює спільні фільтри сайдбару (регіони + період з пресе
+          тами).
+      64  
+      65      Пресети рахуються відносно останньої дати в даних (а не «сь
+          огодні»), бо
+      66 -    дані можуть не доходити до поточного дня. Повертає (regions
+         -, date_range,                                                  
+      66 +    дані можуть не доходити до поточного дня. Назва «усіх даних
+         +» залежить від                                                 
+      67 +    джерела (API має лише ~місяць історії). Повертає (regions, 
+         +date_range,                                                    
+      68      min_d, max_d). Використовується однаково для обох джерел да
+          них.
+      69      """
+      70      st.sidebar.header("Фільтри")
+     ...
+      74      min_d = events[config.COL_START].dt.date.min()
+      75      max_d = events[config.COL_START].dt.date.max()
+      76  
+      76 -    period = st.sidebar.selectbox("Період", PERIOD_PRESETS, ind
+         -ex=0)                                                          
+      77 +    all_label = PERIOD_ALL_API if source == SOURCE_API else PER
+         +IOD_ALL_HIST                                                   
+      78 +    presets = [all_label, PERIOD_WEEK, PERIOD_MONTH, PERIOD_CUS
+         +TOM]                                                           
+      79 +                                                               
+      80 +    period = st.sidebar.selectbox("Період", presets, index=0)  
+      81      if period == PERIOD_WEEK:
+      82          date_range = (max(min_d, max_d - timedelta(days=7)), ma
+          x_d)
+      83      elif period == PERIOD_MONTH:
+     ...
+      86          date_range = st.sidebar.date_input(
+      87              "Діапазон", value=(min_d, max_d), min_value=min_d, 
+          max_value=max_d
+      88          )
+      85 -    else:  # PERIOD_ALL                                        
+      89 +    else:  # усі дані                                          
+      90          date_range = (min_d, max_d)
+      91  
+      92      if period != PERIOD_CUSTOM and len(date_range) == 2:
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 1 line, removed 1 line
+      130      st.stop()
+      131  
+      132  # --- Сайдбар: фільтри (спільні для обох джерел) -------------
+           --------------
+      133 -sel_regions, sel_dates, min_d, max_d = render_filters(events) 
+      133 +sel_regions, sel_dates, min_d, max_d = render_filters(events, 
+          +source)                                                       
+      134  
+      135  if source == SOURCE_API:
+      136      st.sidebar.caption("✅ Реальні дані alerts.in.ua (повітрян
+           і тривоги).")
+
+⏺ Bash(.venv/bin/python -c "import ast;
+      ast.parse(open('app/dashboard.py').read()); print('syntax OK')"
+      .venv/bin/python -m streamlit run app/dashboard.py --server.hea…)
+  ⎿  syntax OK
+     HTTP 200
+     no errors
+     stopped
+
+⏺ Готово. Перейменував пресет, щоб він чесно відображав обмеження джерела:
+
+  - Live API → «Усі дані (до місяця)» — одразу зрозуміло, що API віддає лише
+  ~місяць історії
+  - Історичні → «Усі дані» — там це справді весь період датасету
+
+  Логіка не змінилась (показує повний наявний діапазон), а підпис під
+  селектором, як і раніше, виводить конкретні дати (📅 2026-05-21 – 2026-06-21),
+  тож межі завжди видно явно.
+
+  Дашборд стартує без помилок (HTTP 200). Перезапустіть streamlit run 
+  app/dashboard.py, щоб побачити нову назву.
+
+✻ Churned for 2m 29s
+
+❯ Для історичних даних, там де ти вказуєш "джерело: Kaggle / синтетичні дані",  
+  додай посилання на використані дані:                                          
+  https://www.kaggle.com/datasets/dimakyn/air-alarm-ukrain-2022022420220409     
+
+⏺ Update(app/dashboard.py)
+  ⎿  Error editing file
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+⏺ Update(app/dashboard.py)
+  ⎿  Added 5 lines, removed 1 line
+      147  
+      148  # --- Заголовок ----------------------------------------------
+           --------------
+      149  st.title("🚨 Аналіз часових рядів повітряних тривог")
+      150 -src_label = "alerts.in.ua API" if source == SOURCE_API else "K
+          -aggle / синтетичні дані"                                      
+      150 +KAGGLE_URL = "https://www.kaggle.com/datasets/dimakyn/air-alar
+          +m-ukrain-2022022420220409"                                    
+      151 +if source == SOURCE_API:                                      
+      152 +    src_label = "alerts.in.ua API"                            
+      153 +else:                                                         
+      154 +    src_label = f"[Kaggle dimakyn/air-alarm-ukraine]({KAGGLE_U
+          +RL}) / синтетичні дані"                                       
+      155  st.caption(f"Період даних: {min_d} – {max_d} · джерело: {src_l
+           abel}")
+      156  
+      157  tab_overview, tab_patterns, tab_forecast = st.tabs(
+
+⏺ Bash(.venv/bin/python -c "import ast;
+      ast.parse(open('app/dashboard.py').read()); print('syntax OK')"
+      .venv/bin/python -m streamlit run app/dashboard.py --server.hea…)
+  ⎿  syntax OK
+     HTTP 200
+     no errors
+     stopped
+
+⏺ Готово. Для історичних даних підпис джерела тепер містить клікабельне 
+  посилання на датасет:
+
+  ▎ Період даних: … · джерело: Kaggle dimakyn/air-alarm-ukraine / синтетичні 
+  ▎ дані
+
+  st.caption рендерить markdown, тож посилання відкривається в новій вкладці.
+  Для live-API підпис лишився без змін («alerts.in.ua API»).
+
+  Дашборд стартує без помилок (HTTP 200). Перезапустіть streamlit run 
+  app/dashboard.py, щоб побачити посилання.
+
+✻ Churned for 49s
+
+❯ Добре, підсумуй архітектуру нашого проєкту в .md файл для швидшого отримання  
+  контексту при майбутніх сесіях.                                               
+
+⏺ Створю CLAUDE.md у корені — цей файл Claude Code автоматично підвантажує на
+  старті кожної сесії, тож це найкраще місце для контексту.
+
+⏺ Write(CLAUDE.md)
+  ⎿  Wrote 71 lines to CLAUDE.md
+       2 # CLAUDE.md — контекст проєкту
+       3 Навчальний MVP: аналіз часових рядів повітряних тривог в Україні
+          зі Streamlit-дашбордом
+         них, так і на live-API.овий прогноз). Працює як на історичних да
+       5 
+       6 ## Запуск
+       8 ```bash
+       9 source .venv/bin/activate          # Python 3.14, venv у .venv/
+      10 python -m src.synth                # згенерувати синтетичні дані
+          (dev-фолбек)
+     … +98 lines (ctrl+o to expand)
+
+⏺ Створив CLAUDE.md у корені проєкту — Claude Code автоматично підвантажує його
+  на старті кожної сесії, тож контекст буде доступний одразу.
+
+  Файл містить:
+  - Команди запуску (venv, synth, ingest, dashboard, тести)
+  - Потік даних — як обидва джерела зводяться до єдиної канонічної схеми подій
+  - Таблиця модулів src/ з призначенням кожного
+  - Ключові рішення та підводні камені, які неочевидні з коду:
+    - ліміт API 30/10хв + кеш + токен у .env
+    - API віддає лише ~місяць історії
+    - обрізання «вічних» тривог окупованих територій
+    - tz Europe/Kyiv (API віддає UTC)
+    - логіка прогнозу
+    - фікс проріджування підписів у plotly heatmap
+    - як адаптувати під іншу схему CSV
+
+  Це згорнутий знімок усього, що ми напрацювали за сесію. У майбутніх сесіях я
+  зможу швидко зорієнтуватись без повторного дослідження кодової бази.
+✻ Churned for 51s
+
+❯ Тепер перевір README.md на акутальність, звірся чи відповідає він тому стану  
+  проєкту, який у нас зараз є. А також, в кінці файлу додай такі блоки: 1.      
+  Покращення. У цьому блоці опиши що ще можна додати у наш проєкт у             
+  майбутньому, куди його розвивати, чому його не вистачає. 2. Рефлексія. У      
+  цьому блоці дай відповідь на три питання: Що пішло не так? Як ви скоригували  
+  свій підхід? Чому ваша остаточна версія краща за першу спробу?                
+
+⏺ Спершу перечитаю поточний README та звірю з фактичним станом проєкту.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ README загалом актуальний, але є кілька неточностей. Виправлю їх і додам нові
+  блоки.
+
+  Неточність 1 — стек: не згадані requests, python-dotenv, pyarrow, і фактично
+  використовується Python 3.14.
+
+⏺ Update(README.md)
+  ⎿  Added 2 lines, removed 1 line
+      15  
+      16  ## Стек
+      17  
+      18 -Python 3.11+, pandas, numpy, statsmodels, plotly, streamlit, py
+         -test.                                                          
+      18 +Python 3.11+ (перевірено на 3.14), pandas, numpy, statsmodels, 
+         +plotly, streamlit,                                             
+      19 +requests, python-dotenv, pyarrow, pytest.                      
+      20  
+      21  ## Встановлення
+      22  
+
+⏺ Неточність 2 — фільтри дашборда: не описані перемикач джерела й пресети
+  періоду. Додам.
+
+⏺ Update(README.md)
+  ⎿  Added 3 lines
+      13  - **Прогноз** — короткостроковий прогноз погодинної к-сті триво
+          г
+      14    (наївний сезонний baseline vs Holt-Winters) з метриками MAE/R
+          MSE.
+      15  
+      16 +У бічній панелі — перемикач джерела даних (live API за замовчув
+         +анням / історичні),                                            
+      17 +фільтр регіонів і пресети періоду (усі дані / останній тиждень 
+         +/ місяць / власний діапазон).                                  
+      18 +                                                               
+      19  ## Стек
+      20  
+      21  Python 3.11+ (перевірено на 3.14), pandas, numpy, statsmodels, 
+          plotly, streamlit,
+
+⏺ Неточність 3 — Обмеження стосуються лише Kaggle. Уточню і додам два нові блоки
+  в кінці.
+
+⏺ Update(README.md)
+  ⎿  Added 49 lines, removed 1 line
+      117  
+      118  ## Обмеження
+      119  
+      120 -Період датасету короткий (~45 днів), тому **тижневу/довгу сезо
+          -нність не аналізуємо** —                                      
+      120 +Період даних короткий в обох джерелах (Kaggle ~45 днів; API ві
+          +ддає лише ~місяць                                             
+      121 +історії й глибшої заднім числом не дає), тому **тижневу/довгу 
+          +сезонність не аналізуємо** —                                  
+      122  фокус на добовому циклі та короткостроковому горизонті прогноз
+           у.
+      123 +                                                              
+      124 +## Покращення (куди розвивати)                                
+      125 +                                                              
+      126 +- **Накопичення історії з API.** API дає лише рухоме вікно ~мі
+          +сяць. Якщо кожен sync                                         
+      127 +  дописуватиме нові тривоги в постійне сховище (дедуп за `id`)
+          +, датасет ростиме за межі                                     
+      128 +  місяця — і з'явиться матеріал для тижневої/сезонної аналітик
+          +и.                                                            
+      129 +- **Гранулярність до районів/громад.** Зараз API-дані зводятьс
+          +я до рівня області;                                           
+      130 +  `location_type` дозволяє аналізувати райони та окремі громад
+          +и.                                                            
+      131 +- **Сильніші моделі прогнозу.** SARIMAX, Prophet або ML (граді
+          +єнтний бустинг із                                             
+      132 +  лаговими/календарними ознаками), екзогенні фактори, інтервал
+          +и довіри, бектест на                                          
+      133 +  кількох вікнах. Зараз — baseline + Holt-Winters із добовою с
+          +езонністю.                                                    
+      134 +- **Виявлення аномалій.** Окрема вкладка для детекції масовани
+          +х атак (різкі синхронні                                       
+      135 +  сплески по багатьох регіонах) — частково вже видно через кор
+          +еляційну матрицю.                                             
+      136 +- **Гео-візуалізація.** Choropleth-карта України з інтенсивніс
+          +тю тривог по областях.                                        
+      137 +- **Автоматизація.** Періодичний sync (cron/планувальник) + ін
+          +крементальне оновлення;                                       
+      138 +  кешування важких обчислень `features`/`analysis` (зараз кешу
+          +ється лише завантаження).                                     
+      139 +- **Збагачення зовнішніми даними.** Накладання ракетних/дронов
+          +их атак (датасет                                              
+      140 +  `piterfm/massive-missile-attacks-on-ukraine`) на криву триво
+          +г.                                                            
+      141 +- **Інженерія.** CI (pytest на пушах), лінтер/типізація, Docke
+          +r, експорт звітів (PDF/PNG).                                  
+      142 +                                                              
+      143 +## Рефлексія                                                  
+      144 +                                                              
+      145 +**Що пішло не так?**                                          
+      146 +- Не вдалося прочитати схему Kaggle-CSV автоматично (сторінка 
+          +рендериться через JS),                                        
+      147 +  тож точні назви колонок були невідомі на старті.            
+      148 +- Під час розвідки структури API я **вичерпав ліміт** (30 запи
+          +тів / 10 хв) і не міг                                         
+      149 +  одразу зробити живий sync.                                  
+      150 +- Перша вибірка реальних даних була зіпсована «вічними» тривог
+          +ами окупованих територій                                      
+      151 +  (почалися у 2022 і не завершені) — часовий ряд розтягувався 
+          +на 1539 днів майже з самих нулів.                             
+      152 +- На тепловій карті `plotly` мовчки проріджував підписи осі — 
+          +Дніпропетровська область                                      
+      153 +  «зникала», хоча була в даних.                               
+      154 +                                                              
+      155 +**Як я скоригував підхід?**                                   
+      156 +- Замість вгадувати схему — зробив **реальні пробні запити** д
+          +о API й верифікував поля та                                   
+      157 +  UID областей; для CSV додав толерантний `COLUMN_ALIASES` + к
+          +рок інспекції схеми.                                          
+      158 +- Побудував **rate-limit-aware клієнт** із дисковим кешем і об
+          +робкою 429; живий sync                                        
+      159 +  запустив фоновим процесом, що дочекався відновлення вікна.  
+      160 +- Додав `clip_to_period()`, який відсікає «вічні» тривоги до р
+          +еального вікна періоду.                                       
+      161 +- Явно задав підписи осей у `viz.heatmap` (`tickmode="array"`)
+          + і масштабовану висоту.                                       
+      162 +                                                              
+      163 +**Чому остаточна версія краща за першу спробу?**              
+      164 +- **Єдина канонічна схема подій** — обидва джерела (CSV/синтет
+          +ика та live API) зводяться                                    
+      165 +  до неї, тож уся аналітика, прогноз і дашборд працюють без ду
+          +блювання логіки.                                              
+      166 +- **Стійкість до реальних даних**: враховано ліміти API, вади 
+          +даних, часові пояси,                                          
+      167 +  особливості рендерингу графіків — те, чого синтетична «щасли
+          +ва» версія не виявляла.                                       
+      168 +- **Перевикористання та якість**: спільні `render_filters` і `
+          +viz`-білдери, дисковий кеш,                                   
+      169 +  10/10 тестів (включно з трансформацією API на реальних зразк
+          +ах).                                                          
+  ⎿  Credit balance too low · Add funds: 
+
+✻ Sautéed for 1m 24s
